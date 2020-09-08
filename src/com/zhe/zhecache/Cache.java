@@ -13,9 +13,9 @@ public class Cache<K, V> {
     private int size;
     private BiConsumer<K, V> callBack;
 
-    public Cache(int size, BiConsumer<K, V> func) {
+    public Cache(int size, BiConsumer<K, V> callBack) {
         this.size = size;
-        callBack = func;
+        this.callBack = callBack;
     }
 
     public void put(K k, V v) {
