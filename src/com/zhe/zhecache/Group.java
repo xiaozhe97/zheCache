@@ -6,6 +6,7 @@ public class Group {
     private final java.lang.String name;
     private final Cache<String, byte[]> mainCache;
     private final Function<String, byte[]> getter;
+    private HttpPool peers;
 
     public Group(java.lang.String name, Function<String, byte[]> getter, int size) {
         this.name = name;
@@ -25,8 +26,36 @@ public class Group {
         return this.load(k);
     }
 
-    private byte[] load(String k) {
-        return this.getLocally(k);
+    public void registerPeers(HttpPool peers) {
+        if (this.peers != null) {
+            System.out.println("RegisterPeerPicker called more than once");
+            return;
+        }
+        this.peers = peers;
+    }
+
+    private byte[] load(String key) {
+        if (this.peers != null) {
+            HttpGetter peer = this.peers.pickPeer(key);
+            if (peer != null) {
+                byte[] value =  this.getFromPeer(peer, key);
+                if (value != null) {
+                    return value;
+                }
+            } else {
+                System.out.println("[zheCache] Failed to get from peer cache");
+            }
+        }
+
+        return this.getLocally(key);
+    }
+
+    private byte[] getFromPeer(HttpGetter peer, String key) {
+        String res = peer.get(this.name, key);
+        if (res == null) {
+            return null;
+        }
+        return ByteArrayUtil.oToB(res);
     }
 
     private byte[] getLocally(String k) {

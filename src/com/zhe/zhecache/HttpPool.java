@@ -1,40 +1,73 @@
 package com.zhe.zhecache;
 
-import java.io.*;
-import java.net.ServerSocket;
-import java.net.Socket;
-import java.nio.charset.StandardCharsets;
+import com.zhe.zhecache.consistenthash.ConHashMap;
 
-public class HTTPPool {
+import java.io.*;
+import java.net.*;
+import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
+
+public class HttpPool {
+    private final Lock lock = new ReentrantLock();
     private String defaultBasePath = "/zhecache/";
     private int port;
     private String basePath;
     private ZheCache zheCache;
+    private String ip;
+    private ConHashMap peers;
+    private Map<String, HttpGetter> httpGetters;
 
-    public HTTPPool(int port, ZheCache zheCache) {
+    public HttpPool(int port, String ip, ZheCache zheCache) {
         this.port = port;
         this.zheCache = zheCache;
         basePath = defaultBasePath;
+        this.ip = ip;
+        this.httpGetters = new HashMap<>();
+    }
+
+    public void set(String... peers) {
+        lock.lock();
+        this.peers = new ConHashMap(3);
+        this.peers.add(peers);
+        for (String peer : peers) {
+            this.httpGetters.put(peer, new HttpGetter(peer));
+        }
+        lock.unlock();
+    }
+
+    public HttpGetter pickPeer(String key) {
+        lock.lock();
+        String peer = this.peers.get(key);
+        if (peer != null && !peer.equals(this.ip + ":" + this.port)) {
+            System.out.println("Pick peer " + peer);
+            lock.unlock();
+            return this.httpGetters.get(peer);
+        }
+        lock.unlock();
+        return null;
     }
 
     public void serve() throws IOException {
-        ServerSocket ss = new ServerSocket(this.port);
-        System.out.println("server is running...");
+        ServerSocket ss = new ServerSocket(this.port, 50, InetAddress.getByName(this.ip));
         while (true) {
             Socket sock = ss.accept();
+            System.out.println("[" + this.ip + ":" + this.port + "]");
             System.out.println("connected from " + sock.getRemoteSocketAddress());
-            Thread t = new Handler(sock, this.basePath, this.zheCache);
+            Thread t = new HttpHandler(sock, this.basePath, this.zheCache);
             t.start();
         }
     }
 }
 
-class Handler extends Thread {
+class HttpHandler extends Thread {
     Socket sock;
     String basePath;
     ZheCache zheCache;
 
-    public Handler(Socket sock, String basePath, ZheCache zheCache) {
+    public HttpHandler(Socket sock, String basePath, ZheCache zheCache) {
         this.sock = sock;
         this.basePath = basePath;
         this.zheCache = zheCache;
@@ -87,16 +120,13 @@ class Handler extends Thread {
         } else {
             // 发送成功响应:
             String data = ByteArrayUtil.bToO(value).toString();
-            String template = "<html><body>"
-                    + key + " : " + data
-                    + "</body></html>";
-            int length = template.getBytes(StandardCharsets.UTF_8).length;
+            int length = data.getBytes(StandardCharsets.UTF_8).length;
             writer.write("HTTP/1.0 200 OK\r\n");
             writer.write("Connection: close\r\n");
             writer.write("Content-Type: text/html\r\n");
             writer.write("Content-Length: " + length + "\r\n");
             writer.write("\r\n"); // 空行标识Header和Body的分隔
-            writer.write(template);
+            writer.write(data);
         }
         writer.flush();
     }

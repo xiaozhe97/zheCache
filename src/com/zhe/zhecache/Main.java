@@ -14,15 +14,33 @@ public class Main {
         db.put("Jack", 456);
         db.put("Sam", 789);
 
-        ZheCache zheCache = new ZheCache();
-        zheCache.serve(8080);
-        zheCache.newGroup("scores", 3, key -> {
-            System.out.println("[SlowDB] search key " + key);
-            Integer value = db.get(key);
-            if (value != null) {
-                return ByteArrayUtil.oToB(value);
-            }
-            return null;
-        });
+        String[] peers = new String[]{"localhost:8081", "localhost:8082", "localhost:8083"};
+        String groupName = "scores";
+
+        for (String peerKey : peers) {
+            ZheCache zheCache = new ZheCache();
+            zheCache.newGroup(groupName, 3, key -> {
+                System.out.println("[SlowDB] search key " + key);
+                Integer value = db.get(key);
+                if (value != null) {
+                    return ByteArrayUtil.oToB(value);
+                }
+                return null;
+            });
+            zheCache.startCacheServer(peerKey, peers, groupName);
+        }
+
+        new Thread(() -> {
+            ZheCache zheCache = new ZheCache();
+            zheCache.newGroup(groupName, 3, key -> {
+                System.out.println("[SlowDB] search key " + key);
+                Integer value = db.get(key);
+                if (value != null) {
+                    return ByteArrayUtil.oToB(value);
+                }
+                return null;
+            });
+            zheCache.startAPIServer("localhost:8084", peers, groupName);
+        }).start();
     }
 }
