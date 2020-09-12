@@ -1,6 +1,4 @@
-package com.zhe.zhecache;
-
-import com.zhe.zhecache.lru.LRUCache;
+package com.zhe.zhecache.lru;
 
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;

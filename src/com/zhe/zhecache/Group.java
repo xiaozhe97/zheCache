@@ -1,5 +1,8 @@
 package com.zhe.zhecache;
 
+import com.zhe.zhecache.lru.Cache;
+import com.zhe.zhecache.singleflight.CallManage;
+
 import java.util.function.Function;
 
 public class Group {
@@ -7,11 +10,13 @@ public class Group {
     private final Cache<String, byte[]> mainCache;
     private final Function<String, byte[]> getter;
     private HttpPool peers;
+    private final CallManage loader;
 
     public Group(java.lang.String name, Function<String, byte[]> getter, int size) {
         this.name = name;
         this.getter = getter;
         this.mainCache = new Cache<>(size, null);
+        this.loader = new CallManage();
     }
 
     public byte[] get(String k) {
@@ -35,19 +40,20 @@ public class Group {
     }
 
     private byte[] load(String key) {
-        if (this.peers != null) {
-            HttpGetter peer = this.peers.pickPeer(key);
-            if (peer != null) {
-                byte[] value =  this.getFromPeer(peer, key);
-                if (value != null) {
-                    return value;
+        return this.loader.run(key, () -> {
+            if (this.peers != null) {
+                HttpGetter peer = this.peers.pickPeer(key);
+                if (peer != null) {
+                    byte[] value =  this.getFromPeer(peer, key);
+                    if (value != null) {
+                        return value;
+                    }
+                } else {
+                    System.out.println("[zheCache] Failed to get from peer cache");
                 }
-            } else {
-                System.out.println("[zheCache] Failed to get from peer cache");
             }
-        }
-
-        return this.getLocally(key);
+            return this.getLocally(key);
+        });
     }
 
     private byte[] getFromPeer(HttpGetter peer, String key) {
