@@ -5,6 +5,19 @@ import com.zhe.zhecache.singleflight.CallManage;
 
 import java.util.function.Function;
 
+//Group 是 zheCache 最核心的数据结构，负责与用户的交互，并且控制缓存值存储和获取的流程。
+//                            是
+//接收 key --> 检查是否被缓存 -----> 返回缓存值 (1)
+//                |  否                         是
+//                |-----> 是否应当从远程节点获取 -----> 与远程节点交互 --> 返回缓存值 (2)
+//                            |  否
+//                            |-----> 调用`回调函数`，获取值并添加到缓存 --> 返回缓存值 (3)
+//
+//细化流程（2）：
+//使用一致性哈希选择节点        是                                    是
+//    |-----> 是否是远程节点 -----> HTTP 客户端访问远程节点 --> 成功？-----> 服务端返回返回值
+//                    |  否                                    ↓  否
+//                    |----------------------------> 回退到本地节点处理。
 public class Group {
     private final java.lang.String name;
     private final Cache<String, byte[]> mainCache;

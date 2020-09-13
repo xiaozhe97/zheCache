@@ -10,6 +10,7 @@ import java.util.Map;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
+//节点的网络相关功能
 public class HttpPool {
     private final Lock lock = new ReentrantLock();
     private String defaultBasePath = "/zhecache/";
